@@ -25,6 +25,9 @@ class Room(models.Model):
     def __str__(self):
         return self.name
 
+    class Meta:
+        ordering = ['-update', '-created'] 
+
 
 # Creating a model for messages
 class Message(models.Model):
