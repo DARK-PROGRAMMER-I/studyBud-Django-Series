@@ -1,6 +1,7 @@
 from django.shortcuts import render , redirect
 from django.contrib import messages
 from django.contrib.auth.models import User
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate , login , logout
 from django.db.models import Q
 from django.http import HttpResponse
@@ -13,7 +14,12 @@ from .forms import RoomForm
 #     {'id': 3, 'name': 'Frontend Developers!'}
 
 # ] # Now we need to pass this data via home method below
+
 def login_page(request):
+
+    #if already logged In, dont allow to login again
+    if request.user.is_authenticated:
+        return redirect('home')
     
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -40,7 +46,7 @@ def login_page(request):
 def logout_user(request):
     logout(request)
     return redirect('login')
-
+@login_required(login_url = 'login')
 def home(request):
     q = request.GET.get('q')  if request.GET.get('q') != None else ''
 
@@ -61,6 +67,8 @@ def room(request, pk): #lets make urls dynamic
     return render(request, 'base/room.html', context)
 
 # Method for creating room
+# Restricting User to create room if he's loggedOut
+@login_required(login_url = 'login')
 def create_room(request):
     form = RoomForm()
     if request.method == 'POST':
@@ -74,9 +82,14 @@ def create_room(request):
 
 
 # Method for updating the room
+@login_required(login_url = 'login')
 def update_room(request, pk):
     room = Room.objects.get(id = pk)
     form = RoomForm(instance = room)
+
+    # Only admin can update the room
+    if request.user != room.host:
+        return HttpResponse('Only Admin is allowed to edit the room!')
 
     if request.method == 'POST':
         form = RoomForm(request.POST, instance = room)
@@ -86,9 +99,14 @@ def update_room(request, pk):
     context = {'form': form}
     return render(request , 'base\create_room.html', context)
 
-
+@login_required(login_url = 'login')
 def delete_room(request, pk):
     room = Room.objects.get(id = pk)
+
+    #restrict user deleting the room if he/she is not owner of it!
+    if request.user != room.host:
+        return HttpResponse("Only Admin can delete the room!")
+
     if request.method == 'POST':
         room.delete()
         return redirect('home')
