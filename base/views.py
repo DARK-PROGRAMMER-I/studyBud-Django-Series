@@ -5,7 +5,8 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate , login , logout
 from django.db.models import Q
 from django.http import HttpResponse
-from .models import Room , Topic
+from django.contrib.auth.forms import UserCreationForm
+from .models import Room , Topic , Message
 from .forms import RoomForm
 # Time to pass data to the templates 
 # rooms = [
@@ -16,13 +17,14 @@ from .forms import RoomForm
 # ] # Now we need to pass this data via home method below
 
 def login_page(request):
+    page = 'login'
 
     #if already logged In, dont allow to login again
     if request.user.is_authenticated:
         return redirect('home')
     
     if request.method == 'POST':
-        username = request.POST.get('username')
+        username = request.POST.get('username').lower()
         password = request.POST.get('password')
 
         # Check if this user exists or not and throw flash message as an error
@@ -39,13 +41,34 @@ def login_page(request):
         else:
             messages.error(request , 'Username OR Password is incorrect!')
 
-    context = {}
+    context = {'page':page}
     return render(request , 'base/login_page.html', context )
 
 
 def logout_user(request):
     logout(request)
     return redirect('login')
+
+
+# Register page
+def registerPage(request):
+    page = 'register'
+    form = UserCreationForm()
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save(commit = False)
+            user.username = user.username.lower()
+            user.save()
+            login(request , user)
+            return redirect('home')
+
+        else:
+            messages.error(request , 'An error occured, please try again!')
+
+    context = {'page':page , 'form':form}
+    return render(request , 'base\login_page.html', context)
+
 @login_required(login_url = 'login')
 def home(request):
     q = request.GET.get('q')  if request.GET.get('q') != None else ''
@@ -62,7 +85,19 @@ def home(request):
 # Another example route for practice
 def room(request, pk): #lets make urls dynamic
     room = Room.objects.get(id= pk)
-    context = {'room': room}
+    message_user = room.message_set.all().order_by('-created')
+    participants = room.participants.all()
+    if request.method == 'POST':
+        mesasge = Message.objects.create(
+            user = request.user,
+            room = room,
+            body = request.POST.get('body') # 'body' is from input tag's name field.  
+        )
+        
+        room.participants.add(request.user)
+        return redirect('room', pk= room.id )
+        
+    context = {'room': room , 'message_user': message_user , 'participants': participants}
 
     return render(request, 'base/room.html', context)
 
@@ -111,6 +146,22 @@ def delete_room(request, pk):
         room.delete()
         return redirect('home')
     return render(request, 'base\delete.html', {'room': room})
+
+
+def delete_message(request, pk):
+    message = Message.objects.get(id = pk)
+    # room = Room.objects.get(id  = pk)
+    if request.user != message.user:
+        return HttpResponse('Only Admin can delete this message')
+    
+    if request.method == 'POST':
+        message.delete()
+        return redirect('home')
+    
+    return render(request , 'base\delete.html' , {'message': message})
+    
+
+    
 
 
 
