@@ -113,6 +113,17 @@ def room(request, pk):  # lets make urls dynamic
 
     return render(request, 'base/room.html', context)
 
+
+def user_profile(request , pk):
+    user = User.objects.get(id = pk)
+    rooms = user.room_set.all()
+    topics = Topic.objects.all()
+    room_messages = user.message_set.all()
+    
+    context = {'user':user, 'room_messages':room_messages, 'rooms': rooms, 'topics': topics}
+    return render(request , 'base/profile.html' , context)
+
+
 # Method for creating room
 # Restricting User to create room if he's loggedOut
 
@@ -123,8 +134,9 @@ def create_room(request):
     if request.method == 'POST':
         form = RoomForm(request.POST)
         if form.is_valid():
-            form.save()
-
+            room = form.save(commit = False)
+            room.host = request.user
+            room.save()
             return redirect('home')
     context = {'form': form}
     return render(request, 'base\create_room.html', context)
